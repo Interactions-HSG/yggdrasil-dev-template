@@ -1,0 +1,57 @@
+= Yggdrasil Project Template
+
+This project is a template to start your own Yggdrasil project using Gradle. The template is based on https://github.com/vert-x3/vertx-gradle-starter[Vert.x Gradle Starter], and includes a version of Yggdrasil as a submodule.
+
+== Prerequisites
+
+* JDK 8+
+
+== Getting started
+
+Create your project with:
+
+[source]
+----
+git clone --recursive https://github.com/Interactions-HSG/yggdrasil-dev-template.git PROJECT_NAME
+----
+
+Replace `PROJECT_NAME` with the name of your project.
+
+== Running the project
+
+Once you have retrieved the project, you can check that everything works with:
+
+[source]
+----
+./gradlew test run
+----
+
+The command compiles the project and runs the tests, then  it launches the application, so you can check by yourself. Open your browser to http://localhost:8080. You should see a message with the current version of Yggdrasil.
+
+== Anatomy of the project
+
+The project contains:
+
+* the Gradle project using the Kotlin DSL (see `build.gradle.kts`) with auto-reloading and fat-jar building
+* a _main_ verticle file (`src/main/java/org/hyperagents/yggdrasil/dev/MainVerticle.java`)
+* a unit test (`src/main/test/org/hyperagents/yggdrasil/dev/MainVerticleTest.java`)
+
+== Start to hack
+
+1. Delete the `.git` directory
+2. Open the `build.gradle.kts` file and customize `vertxVersion`. You can also change the `mainVerticleName` variable to use your own package name and verticle class.
+3. Run `./gradlew run`.
+
+This last command relaunches Gradle and the application as soon as you change something under `src/main`.
+
+Note that the project contains an `.editorconfig` file for default editor settings. https://editorconfig.org/[EditorConfig] is supported by many editors and IDEs, others require installing a plugin (see http://editorconfig.org/#download[Download a Plugin]). 
+
+== Building the project
+
+To build the project, just use:
+
+----
+./gradlew build
+----
+
+It generates a _fat-jar_ in the `build/libs` directory.
