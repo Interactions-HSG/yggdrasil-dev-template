@@ -12,7 +12,7 @@ Create your project with:
 
 [source]
 ----
-git clone --recursive https://github.com/Interactions-HSG/yggdrasil-dev-template.git PROJECT_NAME
+git clone --recursive git@github.com:Interactions-HSG/yggdrasil-dev-template.git PROJECT_NAME
 ----
 
 Replace `PROJECT_NAME` with the name of your project.
