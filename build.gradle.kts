@@ -8,6 +8,7 @@ plugins {
 
 repositories {
   mavenCentral()
+  maven { url = uri("http://jacamo.sourceforge.net/maven2") }
 }
 
 val vertxVersion = "3.9.1"

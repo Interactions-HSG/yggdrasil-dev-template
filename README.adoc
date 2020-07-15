@@ -46,6 +46,25 @@ This last command relaunches Gradle and the application as soon as you change so
 
 Note that the project contains an `.editorconfig` file for default editor settings. https://editorconfig.org/[EditorConfig] is supported by many editors and IDEs, others require installing a plugin (see http://editorconfig.org/#download[Download a Plugin]). 
 
+
+== Programming hypermedia artifacts
+
+Yggdrasil uses https://github.com/cartago-lang/cartago[CArtAgO] for programming and running hypermedia artifacts and it generates a W3C WoT TD for each virtual artifact when the artifact is instantiated. All hypermedia artifact templates have to be registered before deploying the `CArtAgOVerticle`.
+
+All HTTP requests that interact with hypermedia artifacts have to include an `X-Agent-WebID` header field. Sample request for creating a counter artifact:   
+
+[source]
+----
+curl -X POST 'http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/' \
+-H 'X-Agent-WebID: http://andreiciortea.ro/#me' \
+-H 'Content-Type: application/json' \
+-d '{
+    "artifactClass" : "http://example.org/Counter",
+    "artifactName" : "c1"
+}'
+----
+
+
 == Building the project
 
 To build the project, just use:
