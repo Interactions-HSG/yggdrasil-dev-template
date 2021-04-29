@@ -1,4 +1,0 @@
-[submodule "yggdrasil"]
-	path = yggdrasil
-	url = git@github.com:Interactions-HSG/yggdrasil.git
-	branch = feature/cartago
