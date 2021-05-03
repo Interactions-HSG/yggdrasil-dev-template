@@ -42,7 +42,9 @@ tasks {
   }
 
   getByName<JavaExec>("run") {
-    args = listOf("run", mainVerticleName, "--redeploy=${watchForChange}", "--launcher-class=${application.mainClassName}", "--on-redeploy=${doOnChange}")
+    args = listOf("run", mainVerticleName, "--redeploy=${watchForChange}",
+      "--launcher-class=${application.mainClassName}", "--on-redeploy=${doOnChange}",
+      "-conf=conf/config.json")
   }
 
   withType<ShadowJar> {

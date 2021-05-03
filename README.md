@@ -30,6 +30,8 @@ The command compiles the project and runs the tests, then  it launches the appli
 check by yourself. Open your browser to [http://localhost:8080](http://localhost:8080). You should
 see a message with the current version of Yggdrasil.
 
+Note: The `run` Gradle task is configured to use the `conf/config.json` configuration file.
+
 ## Anatomy of the project
 
 The project contains:
