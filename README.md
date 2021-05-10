@@ -1,8 +1,8 @@
 # Yggdrasil Project Template
 
-This project is a template to start your own Yggdrasil project using Gradle. The template is based
-on [Vert.x Gradle Starter](https://github.com/vert-x3/vertx-gradle-starter), and includes a version
-of Yggdrasil as a submodule.
+This project is a template to start your own Yggdrasil project using Gradle. Yggdrasil is based on
+[Vert.x](https://vertx.io/) and this template is based on
+[Vert.x Gradle Starter](https://github.com/vert-x3/vertx-gradle-starter).
 
 ## Prerequisites
 
@@ -57,12 +57,152 @@ The project contains:
 ## Programming hypermedia artifacts
 
 Yggdrasil uses [CArtAgO v2.5](https://github.com/cartago-lang/cartago) for programming and running
-hypermedia artifacts and it generates a W3C WoT TD for each virtual artifact when the artifact is
-instantiated. All hypermedia artifact templates have to be registered before deploying the
-`CArtAgOVerticle`.
+virtual hypermedia artifacts. When an artifact is instantiated, Yggdrasil exposes an HTTP API for the artifact
+instance and generates a [W3C WoT Thing Description (TD)](https://www.w3.org/TR/wot-thing-description/).
+For instance, this is a Turtle representation of a TD generated for a virtual counter artifact:
 
-All HTTP requests that interact with hypermedia artifacts have to include an `X-Agent-WebID` header
-field. Sample request for creating a counter artifact:
+```text
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix eve: <http://w3id.org/eve#> .
+@prefix hctl: <https://www.w3.org/2019/wot/hypermedia#> .
+@prefix htv: <http://www.w3.org/2011/http#> .
+@prefix td: <https://www.w3.org/2019/wot/td#> .
+@prefix wotsec: <https://www.w3.org/2019/wot/security#> .
+
+<http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/counter1> a <http://example.org/Counter>,
+    eve:Artifact, td:Thing;
+  dct:title "counter1";
+  td:hasActionAffordance [ a <http://example.org/Increment>, td:ActionAffordance;
+      dct:title "inc";
+      td:hasForm [
+          htv:methodName "POST";
+          hctl:forContentType "application/json";
+          hctl:hasOperationType td:invokeAction;
+          hctl:hasTarget <http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/counter1/increment>
+        ];
+      td:name "inc"
+    ];
+  td:hasSecurityConfiguration [ a wotsec:NoSecurityScheme
+    ] .
+```
+
+The virtual counter exposes an action to increment the counter. A client can invoke this action by
+issuing an `HTTP POST` request to the given endpoint. No payload is required to execute this action
+(the content type `application/json` added here is just a default value given by the W3C
+Recommendation for the WoT TD).
+
+### Defining virtual hypermedia artifacts
+
+To define a new virtual artifact, you need to extend the abstract class `HypermediaArtifact` and
+to implement the abstract method `registerInteractionAffordances()`. This method is called by Yggdrasil
+to generate TDs for instances of your artifact class. For instance, we can define a virtual `Counter`
+artifact as follows:
+
+```java
+package ch.unisg.ics.interactions;
+
+import org.hyperagents.yggdrasil.cartago.HypermediaArtifact;
+
+import cartago.OPERATION;
+import cartago.ObsProperty;
+
+public class Counter extends HypermediaArtifact {
+
+  public void init() {
+    defineObsProperty("count", 0);
+  }
+
+  @OPERATION
+  public void inc() {
+    ObsProperty prop = getObsProperty("count");
+    prop.updateValue(prop.intValue() + 1);
+  }
+
+  @Override
+  protected void registerInteractionAffordances() {
+    // Register one action affordance with an input schema
+    registerActionAffordance("http://example.org/Increment", "inc", "/increment");
+  }
+}
+```
+
+In the current implementation, only action affordances can be exposed in the generated TDs. Other
+useful methods provided by `HypermediaArtifact` are:
+* `addMetadata(Model model)`: can be used to add additional metadata to generated TDs; the metadata
+  is passed along as an RDF model with [RDF4J](https://rdf4j.org/).
+* `setSecurityScheme(SecurityScheme scheme)`: can be used to add a
+  [security scheme](https://www.w3.org/TR/wot-thing-description/#sec-security-vocabulary-definition).
+
+`HypermediaArtifact` extends from CArtAgO's `Artifact` class. For a hands-on introduction to CArtAgO,
+check out the [CArtAgO by Examples](http://cartago.sourceforge.net/?page_id=47) tutorial for the
+[JaCaMo platform](https://github.com/jacamo-lang/jacamo).
+
+### The CArtAgO Verticle and registering virtual artifacts
+
+CArtAgO is currently integrated with Yggdrasil through a [Vert.x](https://vertx.io/) verticle. To use
+virtual artifacts, you just need to deploy the CArtAgO verticle:
+
+```java
+JsonObject knownArtifacts = new JsonObject()
+    .put("http://example.org/Counter", "ch.unisg.ics.interactions.Counter");
+
+JsonObject cartagoConfig = config();
+cartagoConfig.put("known-artifacts", knownArtifacts);
+
+vertx.deployVerticle(new CartagoVerticle(),
+    new DeploymentOptions().setWorker(true).setConfig(cartagoConfig)
+  );
+```
+
+Note that all classes of virtual hypermedia artifacts have to be registered before deploying the
+CArtAgO verticle. In the current implementation, this is done via the deployment configuration using
+the `known-artifacts` keyword. An artifact is registered under a given URI, e.g.
+`http://example.org/Counter`. The artifact class URIs are language-agnostic and add an indirection
+level: they are used by Yggdrasil to advertise supported artifacts and by clients to specify the
+artifact class to be instantiated.
+
+For instance, the following TD is for a workspace artifact and exposes an action affordance that can
+be used to create an artifact. Two artifact classes can be used in this case: the above-mentioned
+counter and a virtual artifact for controlling a PhantomX robotic arm:
+
+```text
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix eve: <http://w3id.org/eve#> .
+@prefix hctl: <https://www.w3.org/2019/wot/hypermedia#> .
+@prefix htv: <http://www.w3.org/2011/http#> .
+@prefix js: <https://www.w3.org/2019/wot/json-schema#> .
+@prefix td: <https://www.w3.org/2019/wot/td#> .
+@prefix wotsec: <https://www.w3.org/2019/wot/security#> .
+
+<http://localhost:8080/environments/env1/workspaces/wksp1> a eve:WorkspaceArtifact,
+    td:Thing;
+  dct:title "wksp1";
+  td:hasActionAffordance [ a eve:MakeArtifact, td:ActionAffordance;
+      td:hasForm [
+          htv:methodName "POST";
+          hctl:forContentType "application/json";
+          hctl:hasOperationType td:invokeAction;
+          hctl:hasTarget <http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/>
+        ];
+      td:hasInputSchema [ a js:ObjectSchema;
+          js:properties [ a eve:ArtifactClass, js:StringSchema;
+              js:enum <http://example.org/Counter>, <https://ci.mines-stetienne.fr/kg/ontology#PhantomX_3D>;
+              js:propertyName "artifactClass"
+            ], [ a js:ArraySchema;
+              js:propertyName "initParams"
+            ], [ a eve:ArtifactName, js:StringSchema;
+              js:enum <http://example.org/Counter>, <https://ci.mines-stetienne.fr/kg/ontology#PhantomX_3D>;
+              js:propertyName "artifactName"
+            ];
+          js:required "artifactClass", "artifactName"
+        ]
+    ];
+  td:hasSecurityConfiguration [ a wotsec:NoSecurityScheme
+    ] .
+```
+
+Following this TD specification, a client can instantiate a counter artifact by issuing the following
+`HTTP POST` request:
 
 ```shell
 curl -X POST 'http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/' \
@@ -73,6 +213,11 @@ curl -X POST 'http://localhost:8080/environments/env1/workspaces/wksp1/artifacts
     "artifactName" : "c1"
 }'
 ```
+
+All HTTP requests have to include an `X-Agent-WebID` header field to  indicate the agent on behalf
+of whom the HTTP request was issued (e.g., the agent creating an artifact or performing an action).
+In the current prototype implementation, this is meant as a substitute for implementing an actual
+authentication protocol (e.g., the WebID authentication protocol).
 
 ## Building the project
 
