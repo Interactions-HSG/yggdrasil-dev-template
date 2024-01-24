@@ -6,7 +6,7 @@ This project is a template to start your own Yggdrasil project using Gradle. Ygg
 
 ## Prerequisites
 
-* JDK 8+
+* JDK 21+
 
 ## Start to hack
 
@@ -27,8 +27,8 @@ Follow the next steps to clear the git history and to set up a fresh project wit
    [settings.gradle.kts](settings.gradle.kts).
 4. Initialize a new git repository: `git init`.
 5. Add Yggdrasil as a submodule pointing to a given branch:
-   `git submodule add -b master git@github.com:Interactions-HSG/yggdrasil.git`.
-6. Initialize all submodules recursively: `git submodule update --init --recursive`.
+   `git submodule add -b main git@github.com:Interactions-HSG/yggdrasil.git`.
+6. Initialize all submodules recursively: `git submodule update --init`.
 7. Run `./gradlew test run`.
 
 This last command compiles the project and runs the tests, then  it launches the application. Open your
@@ -47,43 +47,45 @@ installing a plugin (see [Download a Plugin](http://editorconfig.org/#download))
 
 The project contains:
 
-* the Gradle project using the Kotlin DSL (see [build.gradle.kts](build.gradle.kts)) with
-  auto-reloading and fat-jar building
-* a [main verticle file](src/main/java/org/hyperagents/yggdrasil/dev/MainVerticle.java)
-* a [Counter](src/main/java/ch/unisg/ics/interactions/Counter.java) hypermedia artifact
-* a [unit test](src/main/test/org/hyperagents/yggdrasil/dev/MainVerticleTest.java) for the main
-  verticle
+* a sample [Counter](src/main/java/ch/unisg/ics/interactions/Counter.java) hypermedia artifact
+* a sample [unit test](src/main/test/org/hyperagents/yggdrasil/MainVerticleTest.java) for the main
+  verticle (deployed by Yggdrasil)
 
 ## Programming hypermedia artifacts
 
-Yggdrasil uses [CArtAgO v2.5](https://github.com/cartago-lang/cartago) for programming and running
+Yggdrasil uses [CArtAgO v3.1](https://github.com/cartago-lang/cartago) for programming and running
 virtual hypermedia artifacts. When an artifact is instantiated, Yggdrasil exposes an HTTP API for the artifact
 instance and generates a [W3C WoT Thing Description (TD)](https://www.w3.org/TR/wot-thing-description/).
 For instance, this is a Turtle representation of a TD generated for a virtual counter artifact:
 
 ```text
-@prefix dct: <http://purl.org/dc/terms/> .
-@prefix eve: <http://w3id.org/eve#> .
-@prefix hctl: <https://www.w3.org/2019/wot/hypermedia#> .
-@prefix htv: <http://www.w3.org/2011/http#> .
+@prefix hmas: <https://purl.org/hmas/> .
 @prefix td: <https://www.w3.org/2019/wot/td#> .
+@prefix htv: <http://www.w3.org/2011/http#> .
+@prefix hctl: <https://www.w3.org/2019/wot/hypermedia#> .
 @prefix wotsec: <https://www.w3.org/2019/wot/security#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix js: <https://www.w3.org/2019/wot/json-schema#> .
+@prefix saref: <https://w3id.org/saref#> .
 
-<http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/counter1> a <http://example.org/Counter>,
-    eve:Artifact, td:Thing;
-  dct:title "counter1";
-  td:hasActionAffordance [ a <http://example.org/Increment>, td:ActionAffordance;
-      dct:title "inc";
+<http://localhost:8080/workspaces/main_workspace/artifacts/c0> a td:Thing, hmas:Artifact,
+    <http://example.org/Counter>;
+  td:title "c0";
+  td:hasSecurityConfiguration [ a wotsec:NoSecurityScheme
+    ];
+  td:hasActionAffordance [ a td:ActionAffordance, <http://example.org/Increment>;
+      td:name "inc";
+      td:title "inc";
       td:hasForm [
           htv:methodName "POST";
+          hctl:hasTarget <http://localhost:8080/workspaces/main_workspace/artifacts/c0/increment>;
           hctl:forContentType "application/json";
-          hctl:hasOperationType td:invokeAction;
-          hctl:hasTarget <http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/counter1/increment>
-        ];
-      td:name "inc"
+          hctl:hasOperationType td:invokeAction
+        ]
     ];
-  td:hasSecurityConfiguration [ a wotsec:NoSecurityScheme
-    ] .
+  hmas:isContainedIn <http://localhost:8080/workspaces/main_workspace> .
+
+<http://localhost:8080/workspaces/main_workspace> a hmas:Workspace .
 ```
 
 The virtual counter exposes an action to increment the counter. A client can invoke this action by
@@ -108,8 +110,8 @@ import cartago.ObsProperty;
 
 public class Counter extends HypermediaArtifact {
 
-  public void init() {
-    defineObsProperty("count", 0);
+  public void init(int initValue) {
+    defineObsProperty("count", initValue);
   }
 
   @OPERATION
@@ -137,68 +139,64 @@ useful methods provided by `HypermediaArtifact` are:
 check out the [CArtAgO by Examples](http://cartago.sourceforge.net/?page_id=47) tutorial for the
 [JaCaMo platform](https://github.com/jacamo-lang/jacamo).
 
-### The CArtAgO Verticle and registering virtual artifacts
+### Registering hypermedia artifact templates
 
-CArtAgO is currently integrated with Yggdrasil through a [Vert.x](https://vertx.io/) verticle. To use
-virtual artifacts, you just need to deploy the CArtAgO verticle:
+All hypermedia artifact templates have to be registered in the configuration file as _known artifacts_
+(see [conf/config.json](conf/config.json)):
 
-```java
-JsonObject knownArtifacts = new JsonObject()
-    .put("http://example.org/Counter", "ch.unisg.ics.interactions.Counter");
-
-JsonObject cartagoConfig = config();
-cartagoConfig.put("known-artifacts", knownArtifacts);
-
-vertx.deployVerticle(new CartagoVerticle(),
-    new DeploymentOptions().setWorker(true).setConfig(cartagoConfig)
-  );
+```json
+  "environment-config" : {
+    "known-artifacts" : [
+      {
+        "class" : "http://example.org/Counter",
+        "template" : "ch.unisg.ics.interactions.Counter"
+      }
+    ],
+    "enabled" : true
+  }
 ```
 
-Note that all classes of virtual hypermedia artifacts have to be registered before deploying the
-CArtAgO verticle. In the current implementation, this is done via the deployment configuration using
-the `known-artifacts` keyword. An artifact is registered under a given URI, e.g.
-`http://example.org/Counter`. The artifact class URIs are language-agnostic and add an indirection
-level: they are used by Yggdrasil to advertise supported artifacts and by clients to specify the
-artifact class to be instantiated.
+An artifact is registered under a given URI, e.g. `http://example.org/Counter`. The artifact class URIs
+are language-agnostic and add an indirection level: they are used by Yggdrasil to advertise supported
+artifacts and by clients to specify the artifact class to be instantiated.
 
 For instance, the following TD is for a workspace artifact and exposes an action affordance that can
-be used to create an artifact. Two artifact classes can be used in this case: the above-mentioned
-counter and a virtual artifact for controlling a PhantomX robotic arm:
+be used to instantiate an artifact. One hypermedia artifact template can be used in this case, the
+above-mentioned virtual counter:
 
 ```text
-@prefix dct: <http://purl.org/dc/terms/> .
-@prefix eve: <http://w3id.org/eve#> .
-@prefix hctl: <https://www.w3.org/2019/wot/hypermedia#> .
-@prefix htv: <http://www.w3.org/2011/http#> .
-@prefix js: <https://www.w3.org/2019/wot/json-schema#> .
+@prefix hmas: <https://purl.org/hmas/> .
 @prefix td: <https://www.w3.org/2019/wot/td#> .
+@prefix htv: <http://www.w3.org/2011/http#> .
+@prefix hctl: <https://www.w3.org/2019/wot/hypermedia#> .
 @prefix wotsec: <https://www.w3.org/2019/wot/security#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix js: <https://www.w3.org/2019/wot/json-schema#> .
+@prefix saref: <https://w3id.org/saref#> .
 
-<http://localhost:8080/environments/env1/workspaces/wksp1> a eve:WorkspaceArtifact,
-    td:Thing;
-  dct:title "wksp1";
-  td:hasActionAffordance [ a eve:MakeArtifact, td:ActionAffordance;
+<http://localhost:8080/workspaces/main_workspace> a td:Thing, hmas:Workspace;
+  td:hasActionAffordance [ a td:ActionAffordance;
+      td:name "makeArtifact";
       td:hasForm [
           htv:methodName "POST";
+          hctl:hasTarget <http://localhost:8080/workspaces/main_workspace/artifacts/>;
           hctl:forContentType "application/json";
-          hctl:hasOperationType td:invokeAction;
-          hctl:hasTarget <http://localhost:8080/environments/env1/workspaces/wksp1/artifacts/>
+          hctl:hasOperationType td:invokeAction
         ];
       td:hasInputSchema [ a js:ObjectSchema;
-          js:properties [ a eve:ArtifactClass, js:StringSchema;
-              js:enum <http://example.org/Counter>, <https://ci.mines-stetienne.fr/kg/ontology#PhantomX_3D>;
-              js:propertyName "artifactClass"
+          js:properties [ a js:StringSchema;
+              js:propertyName "artifactClass";
+              js:enum <http://example.org/Counter>
             ], [ a js:ArraySchema;
               js:propertyName "initParams"
-            ], [ a eve:ArtifactName, js:StringSchema;
-              js:enum <http://example.org/Counter>, <https://ci.mines-stetienne.fr/kg/ontology#PhantomX_3D>;
+            ], [ a js:StringSchema;
               js:propertyName "artifactName"
             ];
           js:required "artifactClass", "artifactName"
         ]
-    ];
-  td:hasSecurityConfiguration [ a wotsec:NoSecurityScheme
-    ] .
+    ], [ a td:ActionAffordance;
+      td:name "joinWorkspace";
+      (...)
 ```
 
 Following this TD specification, a client can instantiate a counter artifact by issuing the following
@@ -210,14 +208,18 @@ curl -X POST 'http://localhost:8080/environments/env1/workspaces/wksp1/artifacts
 -H 'Content-Type: application/json' \
 -d '{
     "artifactClass" : "http://example.org/Counter",
-    "artifactName" : "c1"
+    "artifactName" : "c1",
+    "initParams": [5]
 }'
 ```
 
-All HTTP requests have to include an `X-Agent-WebID` header field to  indicate the agent on behalf
+All HTTP requests have to include an `X-Agent-WebID` header field to indicate the agent on behalf
 of whom the HTTP request was issued (e.g., the agent creating an artifact or performing an action).
 In the current prototype implementation, this is meant as a substitute for implementing an actual
 authentication protocol (e.g., the WebID authentication protocol).
+
+*Note:* in the current implementation, the WebIDs of agents should have the form
+`http://localhost:8080/agents/<agent_name>`.
 
 ## Building the project
 

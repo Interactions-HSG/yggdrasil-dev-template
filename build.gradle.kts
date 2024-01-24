@@ -3,15 +3,14 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 plugins {
   java
   application
-  id("com.github.johnrengelman.shadow") version "4.0.3"
+  id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 repositories {
   mavenCentral()
-  maven { url = uri("http://jacamo.sourceforge.net/maven2") }
 }
 
-val vertxVersion = "3.9.1"
+val vertxVersion = "4.5.1"
 val junitVersion = "5.3.2"
 
 dependencies {
@@ -26,34 +25,35 @@ dependencies {
 
 java {
   sourceCompatibility = JavaVersion.VERSION_1_8
+  targetCompatibility = JavaVersion.VERSION_1_8
 }
 
 application {
-  mainClassName = "io.vertx.core.Launcher"
+  mainClass = "io.vertx.core.Launcher"
 }
 
-val mainVerticleName = "org.hyperagents.yggdrasil.dev.MainVerticle"
-val watchForChange = "src/**/*.java"
-val doOnChange = "${projectDir}/gradlew classes"
+val mainVerticleName = "org.hyperagents.yggdrasil.MainVerticle"
 
 tasks {
-  test {
-    useJUnitPlatform()
-  }
-
-  getByName<JavaExec>("run") {
-    args = listOf("run", mainVerticleName, "--redeploy=${watchForChange}",
-      "--launcher-class=${application.mainClassName}", "--on-redeploy=${doOnChange}",
-      "-conf=conf/config.json")
-  }
-
-  withType<ShadowJar> {
-    classifier = "fat"
+  named<ShadowJar>("shadowJar") {
     manifest {
-      attributes["Main-Verticle"] = mainVerticleName
+      attributes(mapOf("Main-Verticle" to mainVerticleName))
     }
     mergeServiceFiles {
       include("META-INF/services/io.vertx.core.spi.VerticleFactory")
     }
+  }
+
+  named<JavaExec>("run") {
+    args = mutableListOf("run", mainVerticleName, "--launcher-class=${application.mainClass.get()}",
+      "-conf=conf/config.json")
+  }
+
+  compileJava {
+    options.compilerArgs.addAll(listOf("-parameters"))
+  }
+
+  test {
+    useJUnitPlatform()
   }
 }
